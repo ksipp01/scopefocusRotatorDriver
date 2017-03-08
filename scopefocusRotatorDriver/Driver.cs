@@ -60,6 +60,31 @@ namespace ASCOM.scopefocus
     [ClassInterface(ClassInterfaceType.None)]
     public class Rotator : IRotatorV2
     {
+
+        //****** add
+        //  private Config config = new Config();
+        private Serial serialPort;
+
+
+        //  private TextWriter log;
+        System.Threading.Mutex mutex = new System.Threading.Mutex();
+
+
+        float lastPos = 0;
+        //    double lastTemp = 0;
+        bool lastMoving = false;
+        bool lastLink = false;
+
+        long UPDATETICKS = (long)(1 * 10000000.0); // 10,000,000 ticks in 1 second
+        long lastUpdate = 0;
+
+
+        long lastL = 0;
+        //************end add
+
+
+
+
         /// <summary>
         /// ASCOM DeviceID (COM ProgID) for this driver.
         /// The DeviceID is used by ASCOM applications to load the driver at runtime.
@@ -160,7 +185,14 @@ namespace ASCOM.scopefocus
 
         public string Action(string actionName, string actionParameters)
         {
-            throw new ASCOM.ActionNotImplementedException("Action " + actionName + " is not implemented by this driver");
+            if (actionName == "Home")
+            {
+                CommandString("H#", false);
+                return "";
+            }
+            else
+                return "";
+          //  throw new ASCOM.ActionNotImplementedException("Action " + actionName + " is not implemented by this driver");
         }
 
         public void CommandBlind(string command, bool raw)
@@ -190,7 +222,50 @@ namespace ASCOM.scopefocus
             // then all communication calls this function
             // you need something to ensure that only one command is in progress at a time
 
-            throw new ASCOM.MethodNotImplementedException("CommandString");
+            //throw new ASCOM.MethodNotImplementedException("CommandString");
+
+            if (!this.Connected)
+            {
+                throw new ASCOM.NotConnectedException();
+
+            }
+
+            string temp = "999";
+            mutex.WaitOne();
+            try
+            {
+                tl.LogMessage("Sending Command: ", command);
+                if (!command.EndsWith("#"))
+                    command += "#";
+
+
+                serialPort.ClearBuffers();
+
+
+                serialPort.Transmit(command);
+
+
+                // get the return value
+                temp = serialPort.ReceiveTerminated("#");
+
+
+                serialPort.ClearBuffers();
+
+
+                tl.LogMessage("Got Response: ", temp);
+
+            }
+            catch (Exception e)
+            {
+                tl.LogMessage("Caught exception in CommandString ", e.Message);
+
+            }
+            finally
+            {
+                mutex.ReleaseMutex();
+            }
+
+            return temp;
         }
 
         public void Dispose()
@@ -203,6 +278,14 @@ namespace ASCOM.scopefocus
             utilities = null;
             astroUtilities.Dispose();
             astroUtilities = null;
+
+            //**** added
+            if (serialPort == null)
+                return;
+            serialPort.Connected = false;
+            serialPort.Dispose();
+            serialPort = null;
+            //**** end addt
         }
 
         public bool Connected
@@ -223,15 +306,164 @@ namespace ASCOM.scopefocus
                     connectedState = true;
                     tl.LogMessage("Connected Set", "Connecting to port " + comPort);
                     // TODO connect to the device
+
+                    // add
+
+                    bool homeSet = false;
+                    int posValue = 0;
+                    bool setPos = false;
+                 //   bool reverse = true;
+                    bool contHold = false;
+                    // check if we are connected, return if we are
+                    if (serialPort != null && serialPort.Connected)
+                        return;
+                    // get the port name from the profile
+                    string portName;
+                    using (ASCOM.Utilities.Profile p = new Profile())
+                    {
+                        // get the values that are stored in the ASCOM Profile for this driver
+                        // these were usually set in the settings dialog
+                        p.DeviceType = "Rotator";
+                        if (!p.IsRegistered("ASCOM.AWR.Telescope"))  // added 2-28-16
+                        {
+                            p.Register("ASCOM.scopefocus.Rotator", "ASCOM Rotator Driver for scopefocus");
+                        }
+
+                //        homeSet = p.GetValue(driverID, "HomeSet").ToLower().Equals("true") ? true : false;
+                        portName = p.GetValue(driverID, "ComPort");
+                        //    portName = "COM4";
+                        setPos = p.GetValue(driverID, "SetPos").ToLower().Equals("true") ? true : false;
+
+                        // 6-16-16 added 2 lines below
+                    //    reverse = p.GetValue(driverID, "Reverse").ToLower().Equals("true") ? true : false;
+                        contHold = p.GetValue(driverID, "ContHold").ToLower().Equals("true") ? true : false;
+
+                        if (setPos)
+                            posValue = System.Convert.ToInt32(p.GetValue(driverID, "Pos"));
+                   //     tempDisplay = p.GetValue(driverID, "TempDisp");
+                   //     focuserSteps = Convert.ToInt32(p.GetValue(Focuser.driverID, "MaxPos"));
+                        //blValue = System.Convert.ToInt32(p.GetValue(driverId, "BackLight"));
+
+                        //*****temp rem until config is finished************
+
+
+                        if (string.IsNullOrEmpty(portName))
+                        {
+                            // report a problem with the port name
+                            throw new ASCOM.NotConnectedException("no Com port selected");
+                        }
+
+                        //*** end temp rem
+
+
+
+                        // try to connect using the port
+                        try
+                        {
+                            //    log = new StreamWriter("c:\\log.txt");
+                            tl.LogMessage("Connecting to serial port", "");
+
+                            // setup the serial port.
+
+                            serialPort = new Serial();
+                            serialPort.PortName = portName;
+                            //   serialPort.PortName = comPort;
+                            serialPort.Speed = SerialSpeed.ps9600;
+                            serialPort.StopBits = SerialStopBits.One;
+                            serialPort.Parity = SerialParity.None;
+                            serialPort.DataBits = 8;
+                            serialPort.DTREnable = false;
+
+
+                            if (!serialPort.Connected)
+                                serialPort.Connected = true;
+
+
+                            // flush whatever is there.
+                            serialPort.ClearBuffers();
+
+
+                            // wait for the Serial Port to come online...better way to do this???
+                            System.Threading.Thread.Sleep(1000);
+
+
+                            // if the user is setting a position in the Settings dialog set it here.
+                            if (setPos)
+                                CommandString("P " + posValue * 100 + "#", false);  //orig was M changed to P 10-18-2015 (want it to set the value not move)
+                            //3-7-17 above also need to correct for user defined steps / degree (not just 100); 
+
+                            // added 6-16-16 
+                            //if (reverse)
+                            //    CommandString("R 1#", false);
+                            //else
+                            //    CommandString("R 0#", false); // motor sitting shaft up turns clockwise with increasing numbers if NOT reversed
+
+                            if (contHold)
+                                CommandString("C 1#", false); //continuous hold on
+                            else
+                                CommandString("C 0#", false);
+
+
+                            //   char td = tempDisplay.Length > 0 ? tempDisplay.ToUpper().ToCharArray()[0] : 'C';
+                            //    CommandString("a" + td + "$", false);
+                            //    SetRpm(System.Convert.ToInt32(p.GetValue(driverId, "RPM")));
+                            // **** ADDED 2-28-16 ****
+                            //turn off serialTrace if driverTrace is on.  
+                            utilities = new Util(); //Initialise util object
+                            if (traceState) // 6-17-16 changed from (!tracestate)
+                                utilities.SerialTrace = false;
+                            else
+                                utilities.SerialTrace = true;
+
+
+
+                        }
+                        catch (Exception ex)
+                        {
+                            // report any error
+                            throw new ASCOM.NotConnectedException("Serial port connectionerror", ex);
+                        }
+                    }
+
+
+
+
+                    //  connectedState = true;
+                    //  tl.LogMessage("Connected Set", "Connecting to port " + comPort);
+                    // TODO connect to the device
                 }
                 else
                 {
+                    CommandString("C 0#", false); //release the continuous hold
+                    System.Threading.Thread.Sleep(500);
+                    //  Dispose();
                     connectedState = false;
                     tl.LogMessage("Connected Set", "Disconnecting from port " + comPort);
-                    // TODO disconnect from the device
+                    if (serialPort != null && serialPort.Connected)
+                    {
+                        //       CommandString("C 0#", false); //release the continuous hold
+                        //       System.Threading.Thread.Sleep(500);
+                        serialPort.Connected = false;
+                        serialPort.Dispose();
+                        serialPort = null;
+                    }
+
+
+
                 }
             }
         }
+
+
+  //  }
+                //else
+                //{
+                //    connectedState = false;
+                //    tl.LogMessage("Connected Set", "Disconnecting from port " + comPort);
+                //    // TODO disconnect from the device
+                //}
+         //   }
+      //  }
 
         public string Description
         {
@@ -280,7 +512,7 @@ namespace ASCOM.scopefocus
         {
             get
             {
-                string name = "Short driver name - please customise";
+                string name = "scopefocus";
                 tl.LogMessage("Name Get", name);
                 return name;
             }
@@ -303,30 +535,79 @@ namespace ASCOM.scopefocus
 
         public void Halt()
         {
-            tl.LogMessage("Halt", "Not implemented");
-            throw new ASCOM.MethodNotImplementedException("Halt");
+
+            CommandString("S#", false);  
+          //  tl.LogMessage("Halt", "Not implemented");
+          //  throw new ASCOM.MethodNotImplementedException("Halt");
         }
 
         public bool IsMoving
         {
             get
             {
-                tl.LogMessage("IsMoving Get", false.ToString()); // This rotator has instantaneous movement
-                return false;
+
+                DoUpdate();
+                return lastMoving;
+                //tl.LogMessage("IsMoving Get", false.ToString()); // This rotator has instantaneous movement
+                //return false;
             }
         }
 
-        public void Move(float Position)
+        public bool Link
         {
-            tl.LogMessage("Move", Position.ToString()); // Move by this amount
-            rotatorPosition += Position;
+            get
+            {
+                long now = DateTime.Now.Ticks;
+                if (now - lastL > UPDATETICKS)
+                {
+                    if (serialPort != null)
+                        lastLink = serialPort.Connected;
+
+                    lastL = now;
+                    return lastLink;
+                }
+
+                return lastLink;
+            }
+            set
+            {
+                this.Connected = value;
+            }
+
+
+            /*
+            get
+            {
+                tl.LogMessage("Link Get", this.Connected.ToString());
+                return this.Connected; // Direct function to the connected method, the Link method is just here for backwards compatibility
+            }
+            set
+            {
+                tl.LogMessage("Link Set", value.ToString());
+                this.Connected = value; // Direct function to the connected method, the Link method is just here for backwards compatibility
+            }
+             */
+        }
+
+
+        public void Move(float Position)  // made int for testing...will need to have float or double 
+        {
+            float moveTo = rotatorPosition *100 + Position * 100;  // corrects for 100 steps per degree, need to replace with user defined variable.  
+            CommandString("M " + moveTo + "#", false);  // Position was 'int value' for focuser
+            lastMoving = true;  //remd 1-12-15
+
+          //  tl.LogMessage("Move", Position.ToString()); // Move by this amount
+            rotatorPosition += Position*100;
             rotatorPosition = (float)astroUtilities.Range(rotatorPosition, 0.0, true, 360.0, false); // Ensure value is in the range 0.0..359.9999...
         }
 
         public void MoveAbsolute(float Position)
         {
-            tl.LogMessage("MoveAbsolute", Position.ToString()); // Move to this position
-            rotatorPosition = Position;
+            CommandString("M " + Position *100 + "#", false);  // Position was 'int value' for focuser  // corrects for 100 steps per degree, need to replace with user defined variable.  
+            lastMoving = true;  //remd 1-12-15
+
+       //     tl.LogMessage("MoveAbsolute", Position.ToString()); // Move to this position
+            rotatorPosition = Position*100;
             rotatorPosition = (float)astroUtilities.Range(rotatorPosition, 0.0, true, 360.0, false); // Ensure value is in the range 0.0..359.9999...
         }
 
@@ -334,8 +615,12 @@ namespace ASCOM.scopefocus
         {
             get
             {
-                tl.LogMessage("Position Get", rotatorPosition.ToString()); // This rotator has instantaneous movement
-                return rotatorPosition;
+                DoUpdate();
+                rotatorPosition = lastPos;
+                return lastPos;
+
+                //tl.LogMessage("Position Get", rotatorPosition.ToString()); // This rotator has instantaneous movement
+                //return rotatorPosition;
             }
         }
 
@@ -370,6 +655,54 @@ namespace ASCOM.scopefocus
                 return rotatorPosition;
             }
         }
+
+        private void DoUpdate()
+        {
+            // only allow access for "gets" once per second.
+            // if inside of 1 second the buffered value will be used.
+            if (DateTime.Now.Ticks > UPDATETICKS + lastUpdate)
+            {
+                lastUpdate = DateTime.Now.Ticks;
+
+
+                // focuser returns a string like:
+                // m:false;s:1000;t:25.20$
+                //   m - denotes moving or not
+                //   s - denotes the position in steps
+                //   t - denotes the temperature, always in C
+
+
+                String val = CommandString("G#", false);
+
+
+                // split the values up.  Ideally you should check for null here.  
+                // if something goes wrong this will throw an exception...no bueno...
+
+
+                //focuser sends P 200;M true#  for e.g.
+
+                String[] vals = val.Replace('#', ' ').Trim().Split(';');
+
+                string valTrim = vals[0].Replace('#', ' ');
+                string pos = valTrim.Replace('P', ' ').Trim();
+                // these values are used in the "Get" calls.  That way the client gets an immediate
+                // response.  However it may up to 1 second out of date.
+                // Thus "lastMoving" must be set to true when the move is initiated in "Move"
+
+                lastPos = Convert.ToSingle(pos)/100;  // correct for 100 steps per degree  ****need to fix to user defined variable.  ****
+                //    lastMoving = false;
+                lastMoving = vals[1].Substring(2) == "true" ? true : false;  //*** remd 1-12-15
+                //   *** 1-12-15  to implement this need to change arduino code to retrun something liek "M:True" 
+                //   *** like example above line 640, then slipt ther string into an array and decifer them
+
+
+
+                //    lastPos = Convert.ToInt16(vals[1].Substring(2));
+                //    lastTemp = Convert.ToDouble(vals[2].Substring(2));
+            }
+        }
+
+
 
         #endregion
 
