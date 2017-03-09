@@ -90,11 +90,17 @@ namespace ASCOM.scopefocus
         {
             textBox1.Text = driver.Position.ToString();
             textBox3.Text = driver.IsMoving.ToString();
+            textBox5.Text = driver.TargetPosition.ToString();
         }
 
         private void button4_Click(object sender, EventArgs e)
         {
             driver.MoveAbsolute(Convert.ToSingle(textBox4.Text));
+        }
+
+        private void button5_Click(object sender, EventArgs e)
+        {
+            driver.Halt();
         }
     }
 }

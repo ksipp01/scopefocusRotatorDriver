@@ -193,7 +193,7 @@ namespace ASCOM.scopefocus
             }
             else
                 return "";
-          //  throw new ASCOM.ActionNotImplementedException("Action " + actionName + " is not implemented by this driver");
+            //  throw new ASCOM.ActionNotImplementedException("Action " + actionName + " is not implemented by this driver");
         }
 
         public void CommandBlind(string command, bool raw)
@@ -313,9 +313,9 @@ namespace ASCOM.scopefocus
                     bool homeSet = false;
                     float posValue = 0;
                     bool setPos = false;
-                 //   bool reverse = true;
+                    //   bool reverse = true;
                     bool contHold = false;
-                    
+
                     // check if we are connected, return if we are
                     if (serialPort != null && serialPort.Connected)
                         return;
@@ -331,18 +331,18 @@ namespace ASCOM.scopefocus
                             p.Register("ASCOM.scopefocus.Rotator", "ASCOM Rotator Driver for scopefocus");
                         }
 
-                //        homeSet = p.GetValue(driverID, "HomeSet").ToLower().Equals("true") ? true : false;
+                        //        homeSet = p.GetValue(driverID, "HomeSet").ToLower().Equals("true") ? true : false;
                         portName = p.GetValue(driverID, "ComPort");
                         //    portName = "COM4";
                         setPos = p.GetValue(driverID, "SetPos").ToLower().Equals("true") ? true : false;
 
                         // 6-16-16 added 2 lines below
-                    //    reverse = p.GetValue(driverID, "Reverse").ToLower().Equals("true") ? true : false;
+                        //    reverse = p.GetValue(driverID, "Reverse").ToLower().Equals("true") ? true : false;
                         contHold = p.GetValue(driverID, "ContHold").ToLower().Equals("true") ? true : false;
 
                         if (setPos)
                             posValue = System.Convert.ToSingle(p.GetValue(driverID, "Pos"));
-                   //     tempDisplay = p.GetValue(driverID, "TempDisp");
+                        //     tempDisplay = p.GetValue(driverID, "TempDisp");
                         stepsPerDegree = Convert.ToInt32(p.GetValue(driverID, "StepsPerDegree"));
                         //blValue = System.Convert.ToInt32(p.GetValue(driverId, "BackLight"));
 
@@ -391,7 +391,8 @@ namespace ASCOM.scopefocus
 
                             // if the user is setting a position in the Settings dialog set it here.
                             if (setPos)
-                                CommandString("P " + posValue * stepsPerDegree + "#", false);  //orig was M changed to P 10-18-2015 (want it to set the value not move)
+                                CommandString("P " + Math.Round(posValue * stepsPerDegree + 36000, 0).ToString() + "#", false);
+                           // CommandString("P " + Math.Round(posValue * stepsPerDegree + 9000, 0).ToString() + "#", false);  //orig was M changed to P 10-18-2015 (want it to set the value not move)
                             //3-7-17 above also need to correct for user defined steps / degree (not just 100); 
 
                             // added 6-16-16 
@@ -457,15 +458,15 @@ namespace ASCOM.scopefocus
         }
 
 
-  //  }
-                //else
-                //{
-                //    connectedState = false;
-                //    tl.LogMessage("Connected Set", "Disconnecting from port " + comPort);
-                //    // TODO disconnect from the device
-                //}
-         //   }
-      //  }
+        //  }
+        //else
+        //{
+        //    connectedState = false;
+        //    tl.LogMessage("Connected Set", "Disconnecting from port " + comPort);
+        //    // TODO disconnect from the device
+        //}
+        //   }
+        //  }
 
         public string Description
         {
@@ -524,7 +525,7 @@ namespace ASCOM.scopefocus
 
         #region IRotator Implementation
 
-        private float rotatorPosition = 0; // Absolute position angle of the rotator 
+        private float targetPosition = 0; // Absolute stepper position of the rotator (in steps)  
 
         public bool CanReverse
         {
@@ -538,9 +539,9 @@ namespace ASCOM.scopefocus
         public void Halt()
         {
 
-            CommandString("S#", false);  
-          //  tl.LogMessage("Halt", "Not implemented");
-          //  throw new ASCOM.MethodNotImplementedException("Halt");
+            CommandString("S#", false);
+            //  tl.LogMessage("Halt", "Not implemented");
+            //  throw new ASCOM.MethodNotImplementedException("Halt");
         }
 
         public bool IsMoving
@@ -592,42 +593,129 @@ namespace ASCOM.scopefocus
         }
 
 
-        public void Move(float Position)  // made int for testing...will need to have float or double 
-        {  
-            float moveTo = rotatorPosition * stepsPerDegree + Position * stepsPerDegree;  // corrects for 100 steps per degree, need to replace with user defined variable.  
+        public void Move(float pos)
+        {
+            
+            // float moveTo = rotatorPosition * stepsPerDegree + Position * stepsPerDegree;  // corrects for 100 steps per degree, need to replace with user defined variable.  
+            double moveTo = StepperPos + RelativeAngleToMotorSteps(pos);
+            targetPosition = pos;
+            if (moveTo >= 72000)
+                moveTo -= 36000;
+            if (moveTo < 0)
+                moveTo += 36000;
             CommandString("M " + Math.Round(moveTo, 0) + "#", false);  // Position was 'int value' for focuser
             lastMoving = true;  //remd 1-12-15
 
-          //  tl.LogMessage("Move", Position.ToString()); // Move by this amount
+            //  tl.LogMessage("Move", Position.ToString()); // Move by this amount
             //rotatorPosition += Position * stepsPerDegree;
             //rotatorPosition = (float)astroUtilities.Range(rotatorPosition, 0.0, true, 360.0, false); // Ensure value is in the range 0.0..359.9999...
         }
 
-        public double PositionAngleToMotorSteps(float positionAngle)
+        //private float rotatorPosition // convert absolute step position to angle.  
+        // {
+        //    get  { return (lastPos - 9000) / 100 % 360; }
+        //    set { rotatorPosition = value; }
+        // }
+
+        public double RelativeAngleToMotorSteps(float angle)
         {
-            var normalizedAngle = positionAngle % 360.0 * stepsPerDegree;
-            return normalizedAngle;
+            var targetSteps1 = angle % 360.00F * stepsPerDegree;
+            return targetSteps1;
+        }
+        public double PositionAngleToMotorSteps(float targetPositionAngle)
+        {
+            float targetAngle = 0;
+            var absTargetAngle1 = targetPositionAngle + 360;
+            var absTargetAngle2 = targetPositionAngle;
+            var angleDelta1 = absTargetAngle1 - StepperPos / stepsPerDegree;
+            var angleDelta2 = StepperPos / stepsPerDegree - absTargetAngle2;
+            if (absTargetAngle1 < 0 || absTargetAngle1 > 720)
+            {
+                targetAngle = absTargetAngle2;
+                return targetAngle * stepsPerDegree;
+            }
+            if (absTargetAngle2 < 0 || absTargetAngle2 > 720)
+            { 
+                targetAngle = absTargetAngle1;
+            return targetAngle * stepsPerDegree;
+             }
+
+            if (angleDelta1 < angleDelta2)
+                targetAngle = absTargetAngle1;
+            else
+                targetAngle = absTargetAngle2;
+            return targetAngle * stepsPerDegree;
+
+            //var targetSteps1 = stepperPosition + (absTargetAngle1 * 100);
+            //var targetAngle2 = stepperPosition - (absTargetAngle2 * 100);
+
+            //var targetPosStepsFinal = 0F;
+            //    var angleDelta1 = targetPositionAngle - Position;
+            //    var angleDelta2 = targetPositionAngle  - (Position - 360 );
+            //var targetSteps1 = StepperPos + (angleDelta1 * 100);
+            //var targetSteps2 = StepperPos + (angleDelta2 * 100);
+
+            //if (targetSteps2 > 72000 || targetSteps2 < 0)
+            //     targetPosStepsFinal = targetSteps1;
+            //if (targetSteps1 > 72000 || targetSteps1 < 0)
+            //    targetPosStepsFinal = targetSteps2;
+            //if (targetSteps1 < targetSteps2)
+            //    targetPosStepsFinal = targetSteps1;
+            //else
+            //    targetPosStepsFinal = targetSteps2;
+
+
+
+
+            //      targetPosStepsFinal = targetPosSteps1;
+            //   else
+            //   targetPosStepsFinal = targetPosSteps2;
+
+            //if (targetPosStepsFinal < 0 || targetPosStepsFinal > 72000)
+            //    throw new ASCOM.InvalidOperationException("stepper target out of range");
+            //  else
+
         }
 
-        public void MoveAbsolute(float Position)
+        public void MoveAbsolute(float pos)
         {
-            var stepPosition = PositionAngleToMotorSteps(Position);
-
-            CommandString("M " +  Math.Round(stepPosition, 0) + "#", false);  // Position was 'int value' for focuser  // corrects for 100 steps per degree, need to replace with user defined variable.  
+            var stepPosition = PositionAngleToMotorSteps(pos);
+            targetPosition = pos;
+         //   TargetPosition = pos;
+            CommandString("M " + Math.Round(stepPosition, 0) + "#", false);  // Position was 'int value' for focuser  // corrects for 100 steps per degree, need to replace with user defined variable.  
             lastMoving = true;  //remd 1-12-15
 
-       //     tl.LogMessage("MoveAbsolute", Position.ToString()); // Move to this position
+            //     tl.LogMessage("MoveAbsolute", Position.ToString()); // Move to this position
             //rotatorPosition = Position * stepsPerDegree;
             //rotatorPosition = (float)astroUtilities.Range(rotatorPosition, 0.0, true, 360.0, false); // Ensure value is in the range 0.0..359.9999...
         }
+
+        public float StepperPos
+        {
+            get
+            {
+                DoUpdate();
+                return lastPos;
+
+            }
+        }
+
+
 
         public float Position
         {
             get
             {
                 DoUpdate();
-                rotatorPosition = lastPos;
-                return lastPos;
+                //rotatorPosition = lastPos;
+                //return lastPos;
+                //   return (lastPos - 9000) / 100 % 360;  // was get{}
+                var pos = (lastPos - 36000) / stepsPerDegree;
+                if (pos < 0)
+                    pos += 360.00F;
+                return pos;
+                // set { rotatorPosition = value; }
+
 
                 //tl.LogMessage("Position Get", rotatorPosition.ToString()); // This rotator has instantaneous movement
                 //return rotatorPosition;
@@ -652,18 +740,26 @@ namespace ASCOM.scopefocus
         {
             get
             {
+                return stepsPerDegree;
+
                 tl.LogMessage("StepSize Get", "Not implemented");
                 throw new ASCOM.PropertyNotImplementedException("StepSize", false);
             }
         }
 
-        public float TargetPosition
+        public float TargetPosition  
         {
             get
             {
-                tl.LogMessage("TargetPosition Get", rotatorPosition.ToString()); // This rotator has instantaneous movement
-                return rotatorPosition;
+                return targetPosition;
+               // DoUpdate();
+               //// tl.LogMessage("TargetPosition Get", Position.ToString()); // This rotator has instantaneous movement
+               // return lastPos;
             }
+            //set
+            //{
+            //    TargetPosition = value;
+            //}
         }
 
         private void DoUpdate()
@@ -699,7 +795,7 @@ namespace ASCOM.scopefocus
                 // response.  However it may up to 1 second out of date.
                 // Thus "lastMoving" must be set to true when the move is initiated in "Move"
 
-                lastPos = Convert.ToSingle(pos)/100;  // correct for 100 steps per degree  ****need to fix to user defined variable.  ****
+                lastPos = Convert.ToSingle(pos);  // raw stepper position in 'steps' from 0 (which is -90 degrees) 
                 //    lastMoving = false;
                 lastMoving = vals[1].Substring(2) == "true" ? true : false;  //*** remd 1-12-15
                 //   *** 1-12-15  to implement this need to change arduino code to retrun something liek "M:True" 
