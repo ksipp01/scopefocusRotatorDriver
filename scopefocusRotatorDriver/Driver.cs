@@ -179,8 +179,24 @@ namespace ASCOM.scopefocus
         {
             get
             {
-                tl.LogMessage("SupportedActions Get", "Returning empty arraylist");
-                return new ArrayList();
+                try
+
+                {
+                    var sa = new ArrayList();
+                    sa.Add("Home");
+                    return sa;
+
+                }
+                catch (Exception ex)
+
+                {
+
+                    throw new ASCOM.DriverException("Cannot get supported actions list.", ex);
+
+                }
+
+                //tl.LogMessage("SupportedActions Get", "Returning empty arraylist");
+               // return new ArrayList();
             }
         }
 
@@ -192,8 +208,7 @@ namespace ASCOM.scopefocus
                 return "";
             }
             else
-                return "";
-            //  throw new ASCOM.ActionNotImplementedException("Action " + actionName + " is not implemented by this driver");
+               throw new ASCOM.ActionNotImplementedException("Action " + actionName + " is not implemented by this driver");
         }
 
         public void CommandBlind(string command, bool raw)

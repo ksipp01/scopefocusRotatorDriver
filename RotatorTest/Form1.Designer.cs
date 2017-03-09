@@ -197,7 +197,7 @@
             this.label5.Name = "label5";
             this.label5.Size = new System.Drawing.Size(81, 13);
             this.label5.TabIndex = 15;
-            this.label5.Text = "Position (steps):";
+            this.label5.Text = "Target Position:";
             // 
             // textBox5
             // 
