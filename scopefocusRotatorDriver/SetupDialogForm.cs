@@ -31,7 +31,7 @@ namespace ASCOM.scopefocus
              //   p.WriteValue(Rotator.driverID, "Reverse", reverseCheckBox1.Checked.ToString());  // motor sitting shaft up turns clockwise with increasing numbers if NOT reversed
                 p.WriteValue(Rotator.driverID, "ContHold", checkBox2.Checked.ToString());
 
-             //   p.WriteValue(Rotator.driverID, "MaxPos", tbMaxPos.Text);
+                p.WriteValue(Rotator.driverID, "StepsPerDegree", textBox2.Text.ToString());
                 //   p.WriteValue(Focuser.driverID, "RPM", textBoxRpm.Text);
                 if (checkBox1.Checked)
                 {
@@ -82,6 +82,15 @@ namespace ASCOM.scopefocus
             if (comboBoxComPort.Items.Contains(Rotator.comPort))
             {
                 comboBoxComPort.SelectedItem = Rotator.comPort;
+            }
+            using (ASCOM.Utilities.Profile p = new Utilities.Profile())
+            {
+                p.DeviceType = "Rotator";
+                textBox2.Text = p.GetValue(Rotator.driverID, "StepsPerDegree");
+                if (p.GetValue(Rotator.driverID, "ContHold") == "False")
+                    checkBox1.Checked = false;
+                else
+                    checkBox1.Checked = true;
             }
         }
 

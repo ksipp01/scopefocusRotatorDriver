@@ -103,6 +103,7 @@ namespace ASCOM.scopefocus
 
         internal static string comPort; // Variables to hold the currrent device configuration
         internal static bool traceState;
+        internal static int stepsPerDegree;
 
         /// <summary>
         /// Private variable to hold the connected state
@@ -310,10 +311,11 @@ namespace ASCOM.scopefocus
                     // add
 
                     bool homeSet = false;
-                    int posValue = 0;
+                    float posValue = 0;
                     bool setPos = false;
                  //   bool reverse = true;
                     bool contHold = false;
+                    
                     // check if we are connected, return if we are
                     if (serialPort != null && serialPort.Connected)
                         return;
@@ -339,9 +341,9 @@ namespace ASCOM.scopefocus
                         contHold = p.GetValue(driverID, "ContHold").ToLower().Equals("true") ? true : false;
 
                         if (setPos)
-                            posValue = System.Convert.ToInt32(p.GetValue(driverID, "Pos"));
+                            posValue = System.Convert.ToSingle(p.GetValue(driverID, "Pos"));
                    //     tempDisplay = p.GetValue(driverID, "TempDisp");
-                   //     focuserSteps = Convert.ToInt32(p.GetValue(Focuser.driverID, "MaxPos"));
+                        stepsPerDegree = Convert.ToInt32(p.GetValue(driverID, "StepsPerDegree"));
                         //blValue = System.Convert.ToInt32(p.GetValue(driverId, "BackLight"));
 
                         //*****temp rem until config is finished************
@@ -389,7 +391,7 @@ namespace ASCOM.scopefocus
 
                             // if the user is setting a position in the Settings dialog set it here.
                             if (setPos)
-                                CommandString("P " + posValue * 100 + "#", false);  //orig was M changed to P 10-18-2015 (want it to set the value not move)
+                                CommandString("P " + posValue * stepsPerDegree + "#", false);  //orig was M changed to P 10-18-2015 (want it to set the value not move)
                             //3-7-17 above also need to correct for user defined steps / degree (not just 100); 
 
                             // added 6-16-16 
@@ -591,24 +593,32 @@ namespace ASCOM.scopefocus
 
 
         public void Move(float Position)  // made int for testing...will need to have float or double 
-        {
-            float moveTo = rotatorPosition *100 + Position * 100;  // corrects for 100 steps per degree, need to replace with user defined variable.  
-            CommandString("M " + moveTo + "#", false);  // Position was 'int value' for focuser
+        {  
+            float moveTo = rotatorPosition * stepsPerDegree + Position * stepsPerDegree;  // corrects for 100 steps per degree, need to replace with user defined variable.  
+            CommandString("M " + Math.Round(moveTo, 0) + "#", false);  // Position was 'int value' for focuser
             lastMoving = true;  //remd 1-12-15
 
           //  tl.LogMessage("Move", Position.ToString()); // Move by this amount
-            rotatorPosition += Position*100;
-            rotatorPosition = (float)astroUtilities.Range(rotatorPosition, 0.0, true, 360.0, false); // Ensure value is in the range 0.0..359.9999...
+            //rotatorPosition += Position * stepsPerDegree;
+            //rotatorPosition = (float)astroUtilities.Range(rotatorPosition, 0.0, true, 360.0, false); // Ensure value is in the range 0.0..359.9999...
+        }
+
+        public double PositionAngleToMotorSteps(float positionAngle)
+        {
+            var normalizedAngle = positionAngle % 360.0 * stepsPerDegree;
+            return normalizedAngle;
         }
 
         public void MoveAbsolute(float Position)
         {
-            CommandString("M " + Position *100 + "#", false);  // Position was 'int value' for focuser  // corrects for 100 steps per degree, need to replace with user defined variable.  
+            var stepPosition = PositionAngleToMotorSteps(Position);
+
+            CommandString("M " +  Math.Round(stepPosition, 0) + "#", false);  // Position was 'int value' for focuser  // corrects for 100 steps per degree, need to replace with user defined variable.  
             lastMoving = true;  //remd 1-12-15
 
        //     tl.LogMessage("MoveAbsolute", Position.ToString()); // Move to this position
-            rotatorPosition = Position*100;
-            rotatorPosition = (float)astroUtilities.Range(rotatorPosition, 0.0, true, 360.0, false); // Ensure value is in the range 0.0..359.9999...
+            //rotatorPosition = Position * stepsPerDegree;
+            //rotatorPosition = (float)astroUtilities.Range(rotatorPosition, 0.0, true, 360.0, false); // Ensure value is in the range 0.0..359.9999...
         }
 
         public float Position
