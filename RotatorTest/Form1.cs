@@ -50,6 +50,7 @@ namespace ASCOM.scopefocus
                 driver.Connected = true;
                 SetUIState();
                 timer1.Start();
+             //   stepsize = driver.StepSize;
             }
             SetUIState();
         }
@@ -73,6 +74,7 @@ namespace ASCOM.scopefocus
         {
             // CW button
             driver.Move(stepsize);
+            
         }
 
         private void button2_Click(object sender, EventArgs e)
