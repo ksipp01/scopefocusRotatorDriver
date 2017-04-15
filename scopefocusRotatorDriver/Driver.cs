@@ -322,7 +322,7 @@ namespace ASCOM.scopefocus
                     connectedState = true;
                     tl.LogMessage("Connected Set", "Connecting to port " + comPort);
                     // TODO connect to the device
-
+                    string version = DriverVersion;
                     // add
 
                     bool homeSet = false;
@@ -427,11 +427,13 @@ namespace ASCOM.scopefocus
                             //    SetRpm(System.Convert.ToInt32(p.GetValue(driverId, "RPM")));
                             // **** ADDED 2-28-16 ****
                             //turn off serialTrace if driverTrace is on.  
-                            utilities = new Util(); //Initialise util object
-                            if (traceState) // 6-17-16 changed from (!tracestate)
-                                utilities.SerialTrace = false;
-                            else
-                                utilities.SerialTrace = true;
+
+                            //remd 4-15-17
+                          //  utilities = new Util(); //Initialise util object
+                            //if (traceState) // 6-17-16 changed from (!tracestate)
+                            //    utilities.SerialTrace = false;
+                            //else
+                            //    utilities.SerialTrace = true;
 
 
 
