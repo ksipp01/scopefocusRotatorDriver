@@ -22,34 +22,44 @@ namespace ASCOM.scopefocus
 
         private void cmdOK_Click(object sender, EventArgs e) // OK button event handler
         {
-            using (ASCOM.Utilities.Profile p = new Utilities.Profile())
+
+            if (textBox2.Text == "")
             {
-                p.DeviceType = "Rotator";
-                p.WriteValue(Rotator.driverID, "ComPort", (string)comboBoxComPort.SelectedItem);
-                p.WriteValue(Rotator.driverID, "SetPos", checkBox1.Checked.ToString());
-                // 6-16-16 added 2 lines below
-             //   p.WriteValue(Rotator.driverID, "Reverse", reverseCheckBox1.Checked.ToString());  // motor sitting shaft up turns clockwise with increasing numbers if NOT reversed
-                p.WriteValue(Rotator.driverID, "ContHold", checkBox2.Checked.ToString());
-
-                p.WriteValue(Rotator.driverID, "StepsPerDegree", textBox2.Text.ToString());
-                //   p.WriteValue(Focuser.driverID, "RPM", textBoxRpm.Text);
-                if (checkBox1.Checked)
-                {
-                    p.WriteValue(Rotator.driverID, "Pos", textBox1.Text.ToString());
-                }
-                //    p.WriteValue(Focuser.driverID, "TempDisp", radioCelcius.Checked ? "C" : "F");
+                MessageBox.Show("You must specify a value for Steps per Degree");
+               
+                return;
             }
-            Dispose();
+            else
+            {
+                using (ASCOM.Utilities.Profile p = new Utilities.Profile())
+                {
+                    p.DeviceType = "Rotator";
+                    p.WriteValue(Rotator.driverID, "ComPort", (string)comboBoxComPort.SelectedItem);
+                    p.WriteValue(Rotator.driverID, "SetPos", checkBox1.Checked.ToString());
+                    // 6-16-16 added 2 lines below
+                    //   p.WriteValue(Rotator.driverID, "Reverse", reverseCheckBox1.Checked.ToString());  // motor sitting shaft up turns clockwise with increasing numbers if NOT reversed
+                    p.WriteValue(Rotator.driverID, "ContHold", checkBox2.Checked.ToString());
+
+
+                    p.WriteValue(Rotator.driverID, "StepsPerDegree", textBox2.Text.ToString());
+                    //   p.WriteValue(Focuser.driverID, "RPM", textBoxRpm.Text);
+                    if (checkBox1.Checked)
+                    {
+                        p.WriteValue(Rotator.driverID, "Pos", textBox1.Text.ToString());
+                    }
+                    //    p.WriteValue(Focuser.driverID, "TempDisp", radioCelcius.Checked ? "C" : "F");
+                }
+                Dispose();
 
 
 
 
-            // Place any validation constraint checks here
-            // Update the state variables with results from the dialogue
-            Rotator.comPort = (string)comboBoxComPort.SelectedItem;
-            Rotator.traceState = chkTrace.Checked;
+                // Place any validation constraint checks here
+                // Update the state variables with results from the dialogue
+                Rotator.comPort = (string)comboBoxComPort.SelectedItem;
+                Rotator.traceState = chkTrace.Checked;
+            }
         }
-
         private void cmdCancel_Click(object sender, EventArgs e) // Cancel button event handler
         {
             Close();
@@ -72,8 +82,20 @@ namespace ASCOM.scopefocus
             }
         }
 
+        private void checkTextBox() //don't allow close with steps/dgree blank or set pos checked and blank position
+        {
+            if (string.IsNullOrWhiteSpace(textBox2.Text))
+                cmdOK.Enabled = false; 
+            else if ((string.IsNullOrWhiteSpace(textBox1.Text) && checkBox1.Checked))
+                cmdOK.Enabled = false;
+            else 
+                cmdOK.Enabled = true;
+        }
+
+
         private void InitUI()
         {
+           
             chkTrace.Checked = Rotator.traceState;
             // set the list of com ports to those that are currently available
             comboBoxComPort.Items.Clear();
@@ -87,11 +109,14 @@ namespace ASCOM.scopefocus
             {
                 p.DeviceType = "Rotator";
                 textBox2.Text = p.GetValue(Rotator.driverID, "StepsPerDegree");
-                if (p.GetValue(Rotator.driverID, "ContHold") == "False")
-                    checkBox1.Checked = false;
+                if (p.GetValue(Rotator.driverID, "ContHold") == "True")
+                    checkBox2.Checked = true;
                 else
-                    checkBox1.Checked = true;
+                    checkBox2.Checked = false;
             }
+            if (!checkBox1.Checked)
+                textBox1.Enabled = false;
+            checkTextBox();
         }
 
         private void checkBox1_CheckedChanged(object sender, EventArgs e)
@@ -103,6 +128,7 @@ namespace ASCOM.scopefocus
 
             //  label2.Enabled = enable;
             textBox1.Enabled = enable;
+            checkTextBox();
         }
 
         private void chkTrace_CheckedChanged(object sender, EventArgs e)
@@ -111,6 +137,18 @@ namespace ASCOM.scopefocus
                 Rotator.traceState = true;
             else
                 Rotator.traceState = false;
+        }
+
+
+
+        private void textBox2_TextChanged(object sender, EventArgs e)
+        {
+            checkTextBox();
+        }
+
+        private void textBox1_TextChanged(object sender, EventArgs e)
+        {
+            checkTextBox();
         }
     }
 }

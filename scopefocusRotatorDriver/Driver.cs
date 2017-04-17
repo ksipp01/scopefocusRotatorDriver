@@ -135,14 +135,14 @@ namespace ASCOM.scopefocus
 
             tl = new TraceLogger("", "scopefocus");
             tl.Enabled = traceState;
-            tl.LogMessage("Rotator", "Starting initialisation");
+            tl.LogMessage("Rotator", "Starting initialization");
 
             connectedState = false; // Initialise connected to false
             utilities = new Util(); //Initialise util object
             astroUtilities = new AstroUtils(); // Initialise astro utilities object
             //TODO: Implement your additional construction here
 
-            tl.LogMessage("Rotator", "Completed initialisation");
+            tl.LogMessage("Rotator", "Completed initialization");
         }
 
 
@@ -323,9 +323,10 @@ namespace ASCOM.scopefocus
                     tl.LogMessage("Connected Set", "Connecting to port " + comPort);
                     // TODO connect to the device
                     string version = DriverVersion;
+                    
                     // add
 
-                    bool homeSet = false;
+               //     bool homeSet = false;
                     float posValue = 0;
                     bool setPos = false;
                     //   bool reverse = true;
@@ -359,6 +360,8 @@ namespace ASCOM.scopefocus
                             posValue = System.Convert.ToSingle(p.GetValue(driverID, "Pos"));
                         //     tempDisplay = p.GetValue(driverID, "TempDisp");
                         stepsPerDegree = Convert.ToInt32(p.GetValue(driverID, "StepsPerDegree"));
+                        tl.LogMessage("Steps per degree:", stepsPerDegree.ToString());
+
                         //blValue = System.Convert.ToInt32(p.GetValue(driverId, "BackLight"));
 
                         //*****temp rem until config is finished************
@@ -406,7 +409,7 @@ namespace ASCOM.scopefocus
 
                             // if the user is setting a position in the Settings dialog set it here.
                             if (setPos)
-                                CommandString("P " + Math.Round(posValue * stepsPerDegree + 36000, 0).ToString() + "#", false);
+                                CommandString("P " + Math.Round(posValue * stepsPerDegree + (360 * stepsPerDegree), 0).ToString() + "#", false);   // was + 36000 not 360*stepsperdegree
                            // CommandString("P " + Math.Round(posValue * stepsPerDegree + 9000, 0).ToString() + "#", false);  //orig was M changed to P 10-18-2015 (want it to set the value not move)
                             //3-7-17 above also need to correct for user defined steps / degree (not just 100); 
 
@@ -421,7 +424,14 @@ namespace ASCOM.scopefocus
                             else
                                 CommandString("C 0#", false);
 
+                            // log the arduino firware version
+                          string ver = CommandString("V#", false);
+                           string verTrim = ver.Replace('#', ' ');
+                            string versn = verTrim.Replace('V', ' ').Trim();
+                            tl.LogMessage("Firmware Version: ", versn.ToString());
 
+
+                        
                             //   char td = tempDisplay.Length > 0 ? tempDisplay.ToUpper().ToCharArray()[0] : 'C';
                             //    CommandString("a" + td + "$", false);
                             //    SetRpm(System.Convert.ToInt32(p.GetValue(driverId, "RPM")));
@@ -429,7 +439,7 @@ namespace ASCOM.scopefocus
                             //turn off serialTrace if driverTrace is on.  
 
                             //remd 4-15-17
-                          //  utilities = new Util(); //Initialise util object
+                            //  utilities = new Util(); //Initialise util object
                             //if (traceState) // 6-17-16 changed from (!tracestate)
                             //    utilities.SerialTrace = false;
                             //else
@@ -512,9 +522,9 @@ namespace ASCOM.scopefocus
             get
             {
                 Version version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-                string driverVersion = String.Format(CultureInfo.InvariantCulture, "{0}.{1}", version.Major, version.Minor);
+                string driverVersion = String.Format(CultureInfo.InvariantCulture, "{0}.{1}.{2}.{3}", version.Major, version.Minor, version.Build, version.Revision);
                 tl.LogMessage("DriverVersion Get", driverVersion);
-                return driverVersion;
+                return driverVersion; //
             }
         }
 
@@ -614,12 +624,12 @@ namespace ASCOM.scopefocus
         {
             
             // float moveTo = rotatorPosition * stepsPerDegree + Position * stepsPerDegree;  // corrects for 100 steps per degree, need to replace with user defined variable.  
-            double moveTo = StepperPos + RelativeAngleToMotorSteps(pos);
+            double moveTo = StepperPos + RelativeAngleToMotorSteps(pos);  // current position in steps + number of steps needed to 
             targetPosition = pos;
-            if (moveTo >= 72000)
-                moveTo -= 36000;
+            if (moveTo >= 720 * stepsPerDegree) // was 72000
+                moveTo -= 360 * stepsPerDegree;
             if (moveTo < 0)
-                moveTo += 36000;
+                moveTo += 360 * stepsPerDegree;
             CommandString("M " + Math.Round(moveTo, 0) + "#", false);  // Position was 'int value' for focuser
             lastMoving = true;  //remd 1-12-15
 
@@ -657,10 +667,30 @@ namespace ASCOM.scopefocus
             return targetAngle * stepsPerDegree;
              }
 
+
+
             if (angleDelta1 < angleDelta2)
+            {
+                // if target is close to 0 or 72000 AND the move is < 90 degrees then go there(acceptable if close)...otherwise want to stay close to 36000
+                if ((absTargetAngle1 < 90 && angleDelta1 < 90) || (absTargetAngle1 > 630 && angleDelta1 < 90))
+                    targetAngle = absTargetAngle1;
+                else
+                    targetAngle = absTargetAngle2;
+                if (absTargetAngle1 >= 90 && absTargetAngle1 <= 630) // if outside the close to 0/72000 zone then use smaller delta
+                    targetAngle = absTargetAngle1;
+
+
+            }
+            else // delta 2 is smaller so in general use it unless within 90 of 0/72000 OR if close then ok 
+            {
+                if ((absTargetAngle2 < 90 && angleDelta2 < 90) || (absTargetAngle2 > 630 && angleDelta2 < 90))
+                    targetAngle = absTargetAngle2;
+                else
                 targetAngle = absTargetAngle1;
-            else
-                targetAngle = absTargetAngle2;
+                if (absTargetAngle2 >= 90 && absTargetAngle2 <= 630)
+                    targetAngle = absTargetAngle2;
+
+            }
             return targetAngle * stepsPerDegree;
 
             //var targetSteps1 = stepperPosition + (absTargetAngle1 * 100);
@@ -706,7 +736,7 @@ namespace ASCOM.scopefocus
             //rotatorPosition = Position * stepsPerDegree;
             //rotatorPosition = (float)astroUtilities.Range(rotatorPosition, 0.0, true, 360.0, false); // Ensure value is in the range 0.0..359.9999...
         }
-
+        // this is the stepper motor position in steps.  
         public float StepperPos
         {
             get
@@ -727,7 +757,7 @@ namespace ASCOM.scopefocus
                 //rotatorPosition = lastPos;
                 //return lastPos;
                 //   return (lastPos - 9000) / 100 % 360;  // was get{}
-                var pos = (lastPos - 36000) / stepsPerDegree;
+                var pos = (lastPos - 360 * stepsPerDegree) / stepsPerDegree;
                 if (pos < 0)
                     pos += 360.00F;
                 return pos;
@@ -759,8 +789,8 @@ namespace ASCOM.scopefocus
             {
                 return stepsPerDegree;
 
-                tl.LogMessage("StepSize Get", "Not implemented");
-                throw new ASCOM.PropertyNotImplementedException("StepSize", false);
+                //tl.LogMessage("StepSize Get", "Not implemented");
+                //throw new ASCOM.PropertyNotImplementedException("StepSize", false);
             }
         }
 

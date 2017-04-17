@@ -136,6 +136,7 @@ namespace ASCOM.scopefocus
             this.textBox1.Name = "textBox1";
             this.textBox1.Size = new System.Drawing.Size(90, 20);
             this.textBox1.TabIndex = 9;
+            this.textBox1.TextChanged += new System.EventHandler(this.textBox1_TextChanged);
             // 
             // checkBox2
             // 
@@ -162,6 +163,7 @@ namespace ASCOM.scopefocus
             this.textBox2.Name = "textBox2";
             this.textBox2.Size = new System.Drawing.Size(90, 20);
             this.textBox2.TabIndex = 12;
+            this.textBox2.TextChanged += new System.EventHandler(this.textBox2_TextChanged);
             // 
             // SetupDialogForm
             // 
