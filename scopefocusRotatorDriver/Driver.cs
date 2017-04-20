@@ -361,6 +361,7 @@ namespace ASCOM.scopefocus
                         //     tempDisplay = p.GetValue(driverID, "TempDisp");
                         stepsPerDegree = Convert.ToInt32(p.GetValue(driverID, "StepsPerDegree"));
                         tl.LogMessage("Steps per degree:", stepsPerDegree.ToString());
+                        tl.LogMessage("stepSize", StepSize.ToString());
 
                         //blValue = System.Convert.ToInt32(p.GetValue(driverId, "BackLight"));
 
@@ -787,7 +788,10 @@ namespace ASCOM.scopefocus
         {
             get
             {
-                return stepsPerDegree;
+                if (stepsPerDegree > 100)  
+                    return .01F;  // minimum of 0.01
+                else
+                    return 1F/stepsPerDegree ; // since carrying out 3 decimla points doesn't work mult by 10
 
                 //tl.LogMessage("StepSize Get", "Not implemented");
                 //throw new ASCOM.PropertyNotImplementedException("StepSize", false);
