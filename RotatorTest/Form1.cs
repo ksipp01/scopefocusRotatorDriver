@@ -104,5 +104,10 @@ namespace ASCOM.scopefocus
         {
             driver.Halt();
         }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            driver.Action("Home", "");
+        }
     }
 }

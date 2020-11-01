@@ -40,6 +40,7 @@ using ASCOM.DeviceInterface;
 using System.Globalization;
 using System.Collections;
 
+
 namespace ASCOM.scopefocus
 {
     //Started on 2-6-17
@@ -304,6 +305,8 @@ namespace ASCOM.scopefocus
             //**** end addt
         }
 
+        
+
         public bool Connected
         {
             get
@@ -331,7 +334,7 @@ namespace ASCOM.scopefocus
                     bool setPos = false;
                     //   bool reverse = true;
                     bool contHold = false;
-
+                    
                     // check if we are connected, return if we are
                     if (serialPort != null && serialPort.Connected)
                         return;
@@ -388,7 +391,6 @@ namespace ASCOM.scopefocus
 
                             serialPort = new Serial();
                             serialPort.PortName = portName;
-                            //   serialPort.PortName = comPort;
                             serialPort.Speed = SerialSpeed.ps9600;
                             serialPort.StopBits = SerialStopBits.One;
                             serialPort.Parity = SerialParity.None;
